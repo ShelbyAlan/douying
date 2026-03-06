@@ -1,0 +1,90 @@
+// ==UserScript==
+// @name         抖音页面自动跳转
+// @namespace    http://tampermonkey.net/
+// @version      1.2
+// @description  检测到精选页时模拟点击推荐按钮，避免 URL 被还原
+// @author       You
+// @match        https://www.douyin.com/*
+// @grant        none
+// @run-at       document-idle
+// ==/UserScript==
+
+(function() {
+    'use strict';
+
+    let lastUrl = location.href;
+
+    // 点击推荐按钮的函数
+    function clickRecommend() {
+        // 方法1: 通过文本内容找"推荐"按钮
+        let recommendBtn = Array.from(document.querySelectorAll('a, button, div, span'))
+            .find(el => el.textContent.trim() === '推荐' && el.getAttribute('href')?.includes('recommend'));
+
+        // 方法2: 通过 href 属性找
+        if (!recommendBtn) {
+            recommendBtn = document.querySelector('a[href*="recommend"]');
+        }
+
+        // 方法3: 通过 data-e2e 或其他属性（抖音常用）
+        if (!recommendBtn) {
+            recommendBtn = document.querySelector('[data-e2e="recommend-tab"], .recommend-tab, [class*="recommend"]');
+        }
+
+        if (recommendBtn) {
+            console.log('[油猴脚本] 找到推荐按钮，模拟点击', recommendBtn);
+            recommendBtn.click();
+            return true;
+        }
+
+        console.log('[油猴脚本] 未找到推荐按钮');
+        return false;
+    }
+
+    // 检测当前是否在精选页
+    function isJingxuanPage() {
+        return location.pathname === '/jingxuan' || location.pathname.startsWith('/jingxuan/');
+    }
+
+    // 主检测函数
+    function checkAndSwitch() {
+        const currentUrl = location.href;
+
+        // URL 发生变化或当前在精选页
+        if (currentUrl !== lastUrl || isJingxuanPage()) {
+            lastUrl = currentUrl;
+
+            if (isJingxuanPage()) {
+                console.log('[油猴脚本] 检测到精选页，尝试切换到推荐页');
+                // 稍微延迟确保 DOM 准备好
+                setTimeout(clickRecommend, 100);
+            }
+        }
+    }
+
+    // 每秒检测
+    setInterval(checkAndSwitch, 1000);
+
+    // 同时监听路由变化（更及时）
+    const originalPushState = history.pushState;
+    const originalReplaceState = history.replaceState;
+
+    history.pushState = function(...args) {
+        originalPushState.apply(this, args);
+        setTimeout(checkAndSwitch, 50);
+    };
+
+    history.replaceState = function(...args) {
+        originalReplaceState.apply(this, args);
+        setTimeout(checkAndSwitch, 50);
+    };
+
+    window.addEventListener('popstate', () => {
+        setTimeout(checkAndSwitch, 50);
+    });
+
+    // 初始检测
+    if (isJingxuanPage()) {
+        setTimeout(clickRecommend, 500);
+    }
+
+})();
